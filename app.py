@@ -1,0 +1,42 @@
+import sqlite3, os
+from datetime import datetime, timedelta
+from pathlib import Path
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
+
+BASE_DIR = Path(__file__).parent
+DB_PATH = BASE_DIR / "records.db"
+JST = timedelta(hours=9)
+
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "换成你的密码")
+
+def init_db():
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("""CREATE TABLE IF NOT EXISTS records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        app_name TEXT NOT NULL,
+        event TEXT NOT NULL,
+        timestamp TEXT NOT NULL)""")
+    conn.commit()
+    conn.close()
+
+init_db()
+
+app = FastAPI(title="查岗系统")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+class ReportBody(BaseModel):
+    app_name: str
+    event: str
+
+@app.post("/report")
+async def report(body: ReportBody, req: Request):
+    auth = req.headers.get("Authorization", "")
+    if auth != f"Bearer {AUTH_TOKEN}":
